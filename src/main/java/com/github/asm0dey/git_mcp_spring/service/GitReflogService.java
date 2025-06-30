@@ -1,6 +1,6 @@
 package com.github.asm0dey.git_mcp_spring.service;
 
-import com.github.asm0dey.git_mcp_spring.resource.GitRepositoryResource;
+import com.github.asm0dey.git_mcp_spring.model.Result;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.ReflogReader;
 import org.eclipse.jgit.lib.Repository;
@@ -14,6 +14,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.github.asm0dey.git_mcp_spring.model.Result.failure;
+import static com.github.asm0dey.git_mcp_spring.model.Result.success;
 import static org.eclipse.jgit.api.ResetCommand.ResetType.HARD;
 
 /**
@@ -24,7 +26,7 @@ import static org.eclipse.jgit.api.ResetCommand.ResetType.HARD;
 public class GitReflogService {
     private static final Logger logger = LoggerFactory.getLogger(GitReflogService.class);
 
-    private final GitRepositoryResource repository;
+    private final GitRepositoryService repository;
 
     public record ReflogCommitter(String name, String email, LocalDateTime time) {
     }
@@ -54,7 +56,7 @@ public class GitReflogService {
      *
      * @param repository Git repository resource
      */
-    public GitReflogService(GitRepositoryResource repository) {
+    public GitReflogService(GitRepositoryService repository) {
         this.repository = repository;
     }
 
@@ -66,7 +68,7 @@ public class GitReflogService {
      * @return List of reflog entries
      */
     @Tool(name = "git_reflog_get", description = "Gets the reflog for a specific ref, HEAD by default")
-    public List<ReflogEntry> getReflog(String refName, int maxCount) {
+    public Result<List<ReflogEntry>> getReflog(String refName, int maxCount) {
         if (refName == null || refName.trim().isEmpty()) {
             refName = "HEAD";
         }
@@ -74,16 +76,17 @@ public class GitReflogService {
             maxCount = 0;
         }
         var ref = refName;
+        if (!repository.hasRepo) return new Result.Failure<>("Repository is not open");
         try (Git git = new Git(repository.getRepository())) {
             Repository repo = git.getRepository();
             ReflogReader reader = repo.getRefDatabase().getReflogReader(ref);
             if (reader == null) {
                 logger.warn("No reflog found for ref: {}", ref);
-                return List.of();
+                return failure("No reflog found for ref: " + ref);
             }
 
             var entries = reader.getReverseEntries();
-            return entries.stream()
+            return success(entries.stream()
                     .limit(maxCount > 0 ? maxCount : Long.MAX_VALUE)
                     .map(entry -> new ReflogEntry(
                             entry.getOldId().name(),
@@ -97,10 +100,10 @@ public class GitReflogService {
                             ref,
                             entries.indexOf(entry)
                     ))
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toList()));
         } catch (Exception e) {
             logger.error("Error reading reflog for ref: {}", ref, e);
-            return List.of();
+            return failure("Error reading reflog for ref: " + ref);
         }
 
     }
@@ -129,7 +132,7 @@ public class GitReflogService {
         }
     }
 
-    private String[] parseReflogExpression(String expression) {
+    private Result<String[]> parseReflogExpression(String expression) {
         if (expression == null || expression.trim().isEmpty()) {
             return null;
         }
@@ -138,9 +141,17 @@ public class GitReflogService {
         if (matcher.matches()) {
             String refName = matcher.group(1);
             int index = Integer.parseInt(matcher.group(2));
-            var entries = getReflog(refName, index + 1);
-            if (entries.size() > index) {
-                return new String[]{refName, entries.get(index).newId()};
+            var res = getReflog(refName, index + 1);
+            switch (res) {
+                case Result.Failure(String m) -> {
+                    return failure(m);
+                }
+                case Result.Success(List<ReflogEntry> entries) -> {
+                    if (entries.size() > index) {
+                        return success(new String[]{refName, entries.get(index).newId()});
+                    }
+
+                }
             }
         }
         return null;
@@ -154,12 +165,16 @@ public class GitReflogService {
      */
     @Tool(name = "git_reflog_revert_expression", description = "Reverts the repository state to a specific reflog entry using ref@{n} syntax")
     public boolean revertReflog(String expression) {
-        String[] refInfo = parseReflogExpression(expression);
-        if (refInfo == null) {
-            logger.error("Invalid reflog expression or entry not found: {}", expression);
-            return false;
+        Result<String[]> refInfo = parseReflogExpression(expression);
+        switch (refInfo) {
+            case Result.Failure(String m) -> {
+                logger.error("Error parsing reflog expression {}: {}", expression, m);
+                return false;
+            }
+            case Result.Success(String[] ref) -> {
+                return revertReflog(ref[0], ref[1]);
+            }
         }
-        return revertReflog(refInfo[0], refInfo[1]);
     }
 
 }

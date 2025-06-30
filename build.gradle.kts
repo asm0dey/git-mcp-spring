@@ -27,6 +27,7 @@ dependencies {
 	implementation("org.springframework.ai:spring-ai-starter-mcp-server")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	testImplementation("org.assertj:assertj-core:4.0.0-M1")
 }
 
 dependencyManagement {
