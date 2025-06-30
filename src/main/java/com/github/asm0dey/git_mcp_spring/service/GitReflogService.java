@@ -14,6 +14,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.eclipse.jgit.api.ResetCommand.ResetType.HARD;
+
 /**
  * Service for Git reflog operations.
  * Provides methods for reflog access and management.
@@ -27,13 +29,23 @@ public class GitReflogService {
     public record ReflogCommitter(String name, String email, LocalDateTime time) {
     }
 
+    /**
+     * Represents a reflog entry with commit information and index.
+     *
+     * @param oldId     Previous commit ID
+     * @param newId     New commit ID
+     * @param message   Reflog message
+     * @param committer Committer information
+     * @param refName   Name of the ref
+     * @param index     Index in reflog (used for HEAD@{n} format)
+     */
     public record ReflogEntry(
             String oldId,
             String newId,
             String message,
             ReflogCommitter committer,
-            String checkout,
-            String refName
+            String refName,
+            int index
     ) {
     }
 
@@ -64,13 +76,14 @@ public class GitReflogService {
         var ref = refName;
         try (Git git = new Git(repository.getRepository())) {
             Repository repo = git.getRepository();
-            ReflogReader reader = repo.getRefDatabase().getReflogReader(refName);
+            ReflogReader reader = repo.getRefDatabase().getReflogReader(ref);
             if (reader == null) {
-                logger.warn("No reflog found for ref: {}", refName);
+                logger.warn("No reflog found for ref: {}", ref);
                 return List.of();
             }
 
-            return reader.getReverseEntries().stream()
+            var entries = reader.getReverseEntries();
+            return entries.stream()
                     .limit(maxCount > 0 ? maxCount : Long.MAX_VALUE)
                     .map(entry -> new ReflogEntry(
                             entry.getOldId().name(),
@@ -81,14 +94,72 @@ public class GitReflogService {
                                     entry.getWho().getEmailAddress(),
                                     LocalDateTime.ofInstant(entry.getWho().getWhenAsInstant(), ZoneId.systemDefault())
                             ),
-                            null,
-                            ref
+                            ref,
+                            entries.indexOf(entry)
                     ))
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            logger.error("Error reading reflog for ref: {}", refName, e);
+            logger.error("Error reading reflog for ref: {}", ref, e);
             return List.of();
         }
 
     }
+
+    /**
+     * Reverts the repository state to a specific reflog entry.
+     *
+     * @param refName  Name of the ref (e.g., "HEAD", "refs/heads/main")
+     * @param commitId The commit ID to revert to
+     * @return true if revert was successful, false otherwise
+     */
+    @Tool(name = "git_reflog_revert", description = "Reverts the repository state to a specific reflog entry")
+    public boolean revertReflog(String refName, String commitId) {
+        if (refName == null || refName.trim().isEmpty()) {
+            refName = "HEAD";
+        }
+        try (Git git = new Git(repository.getRepository())) {
+            git.reset()
+                    .setMode(HARD)
+                    .setRef(commitId)
+                    .call();
+            return true;
+        } catch (Exception e) {
+            logger.error("Error reverting to reflog entry: {} at {}", refName, commitId, e);
+            return false;
+        }
+    }
+
+    private String[] parseReflogExpression(String expression) {
+        if (expression == null || expression.trim().isEmpty()) {
+            return null;
+        }
+        var pattern = "(.+)@\\{(\\d+)}";
+        var matcher = java.util.regex.Pattern.compile(pattern).matcher(expression);
+        if (matcher.matches()) {
+            String refName = matcher.group(1);
+            int index = Integer.parseInt(matcher.group(2));
+            var entries = getReflog(refName, index + 1);
+            if (entries.size() > index) {
+                return new String[]{refName, entries.get(index).newId()};
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Reverts the repository state to a specific reflog entry using ref@{n} syntax.
+     *
+     * @param expression The reflog expression (e.g., "HEAD@{3}", "refs/heads/main@{2}")
+     * @return true if revert was successful, false otherwise
+     */
+    @Tool(name = "git_reflog_revert_expression", description = "Reverts the repository state to a specific reflog entry using ref@{n} syntax")
+    public boolean revertReflog(String expression) {
+        String[] refInfo = parseReflogExpression(expression);
+        if (refInfo == null) {
+            logger.error("Invalid reflog expression or entry not found: {}", expression);
+            return false;
+        }
+        return revertReflog(refInfo[0], refInfo[1]);
+    }
+
 }
