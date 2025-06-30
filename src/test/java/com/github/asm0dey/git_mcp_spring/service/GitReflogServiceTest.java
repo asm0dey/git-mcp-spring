@@ -24,7 +24,7 @@ class GitReflogServiceTest {
     @Test
     void checkFirstReflogEntry() {
         GitRepositoryService gitRepository = new GitRepositoryService();
-        gitRepository.open(Paths.get(System.getProperty("user.dir")));
+        gitRepository.open(System.getProperty("user.dir"));
         GitReflogService reflogService = new GitReflogService(gitRepository);
         Result<List<GitReflogService.ReflogEntry>> outRef = reflogService.getReflog(null, 0);
         var reflog = ((Result.Success<List<GitReflogService.ReflogEntry>>) outRef).value();
@@ -40,7 +40,7 @@ class GitReflogServiceTest {
         // Initialize new repository
         try (var git = Git.init().setDirectory(tempDir.toFile()).call()) {
             GitRepositoryService gitRepository = new GitRepositoryService();
-            gitRepository.open(tempDir);
+            gitRepository.open(tempDir.toAbsolutePath().toString());
             GitReflogService reflogService = new GitReflogService(gitRepository);
 
             // Create initial commits
