@@ -23,16 +23,22 @@ mcpServers:
     env: {}
     timeout: 30000
     connectionMode: lenient
+  # git:
+  # type: stdio
+  # command: /home/finkel/work_self/git-mcp-spring/build/native/nativeCompile/git-mcp-spring # java
+  # command: java
+  # args: []
+  # args:
+  # - -jar
+  #   - "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005,quiet=y"
+  # - /home/finkel/work_self/git-mcp-spring/build/libs/git-mcp-spring-0.0.1-SNAPSHOT.jar
+  # env: {}
+  # timeout: 60000
+  # connectionMode: lenient
   git:
-    type: stdio
-    command: java
-    args:
-      - -jar
-      - "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005,quiet=y"
-      - /home/finkel/work_self/git-mcp-spring/build/libs/git-mcp-spring-0.0.1-SNAPSHOT.jar
-    env: {}
+    type: sse
+    url: http://localhost:8080/sse
     timeout: 60000
-    connectionMode: lenient
 llm:
   provider: openai
   model: gpt-4.1-mini

@@ -1,5 +1,6 @@
 package com.github.asm0dey.git_mcp_spring;
 
+import com.github.asm0dey.git_mcp_spring.service.GitInteractiveRebaseService;
 import com.github.asm0dey.git_mcp_spring.service.GitLogService;
 import com.github.asm0dey.git_mcp_spring.service.GitReflogService;
 import com.github.asm0dey.git_mcp_spring.service.GitRepositoryService;
@@ -20,8 +21,11 @@ public class GitMcpSpringApplication {
     public ToolCallbackProvider weatherTools(
             GitRepositoryService repo,
             GitLogService log,
-            GitReflogService reflog) {
-        return MethodToolCallbackProvider.builder().toolObjects(repo, reflog, log).build();
+            GitReflogService reflog,
+            GitInteractiveRebaseService rebase/*,
+            GitBisectService bisect*/
+    ) {
+        return MethodToolCallbackProvider.builder().toolObjects(repo, reflog, log, rebase/*, bisect*/).build();
     }
 
 }

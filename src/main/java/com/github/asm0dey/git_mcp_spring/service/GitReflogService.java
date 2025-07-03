@@ -67,7 +67,7 @@ public class GitReflogService {
      * @param maxCount Maximum number of entries to return (0 for all)
      * @return List of reflog entries
      */
-    @Tool(name = "git_reflog_get", description = "Gets the reflog for a specific ref, HEAD by default")
+    @Tool(name = "git_reflog_get", description = "Gets the reflog (reference log) for a specific ref - shows history of ref updates/movements, not commit history. Use this to see when HEAD or branches were moved, reset, or updated. Different from git_log which shows commit history.")
     public Result<List<ReflogEntry>> getReflog(String refName, int maxCount) {
         if (refName == null || refName.trim().isEmpty()) {
             refName = "HEAD";
@@ -115,7 +115,7 @@ public class GitReflogService {
      * @param commitId The commit ID to revert to
      * @return true if revert was successful, false otherwise
      */
-    @Tool(name = "git_reflog_revert", description = "Reverts the repository state to a specific reflog entry")
+    @Tool(name = "git_reflog_revert", description = "Reverts the repository state to a specific reflog entry using commit ID. This performs a hard reset to restore the repository to a previous state recorded in the reflog. Use with caution as it changes working directory.")
     public boolean revertReflog(String refName, String commitId) {
         if (refName == null || refName.trim().isEmpty()) {
             refName = "HEAD";
@@ -163,7 +163,7 @@ public class GitReflogService {
      * @param expression The reflog expression (e.g., "HEAD@{3}", "refs/heads/main@{2}")
      * @return true if revert was successful, false otherwise
      */
-    @Tool(name = "git_reflog_revert_expression", description = "Reverts the repository state to a specific reflog entry using ref@{n} syntax")
+    @Tool(name = "git_reflog_revert_expression", description = "Reverts the repository state to a specific reflog entry using ref@{n} syntax (e.g., HEAD@{3}). This performs a hard reset to restore the repository to a previous state from the reflog history. Use with caution as it changes working directory.")
     public boolean revertReflog(String expression) {
         Result<String[]> refInfo = parseReflogExpression(expression);
         switch (refInfo) {

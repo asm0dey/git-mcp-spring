@@ -88,7 +88,7 @@ public class GitLogService {
         }
     }
 
-    @Tool(name = "git_log", description = "Gets the log of commits")
+    @Tool(name = "git_log", description = "Gets the commit history log - shows chronological list of commits with their messages, authors, and changes. Different from git_reflog which shows reference movement history.")
     public List<CommitInfo> getLog(GitLogOptions options) throws GitAPIException {
         try (Git git = new Git(repository.getRepository())) {
             LogCommand logCommand = git.log();
@@ -187,7 +187,7 @@ public class GitLogService {
                 .collect(Collectors.toList());
     }
 
-    @Tool(name = "git_commit_info", description = "Gets commit information by commit ID or reference")
+    @Tool(name = "git_commit_info", description = "Gets detailed information about a specific commit by commit ID or reference - shows commit message, author, changes, and metadata. This is for examining individual commits, not reference history.")
     public CommitInfo getCommitInfo(String commitIdOrRef, GitLogOptions options) throws GitAPIException {
         try (Git git = new Git(repository.getRepository())) {
             RevCommit commit;
@@ -202,4 +202,3 @@ public class GitLogService {
         }
     }
 }
-
