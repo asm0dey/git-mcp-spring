@@ -42,7 +42,7 @@ public class GitInteractiveRebaseService {
             String author,
             String authorEmail,
             LocalDateTime date,
-            String action
+            RebaseAction action
     ) {
     }
 
@@ -78,10 +78,68 @@ public class GitInteractiveRebaseService {
     }
 
     /**
+     * Represents the action to perform during an interactive rebase.
+     */
+    public enum RebaseAction {
+        PICK("pick", "Keep the commit as is"),
+        SQUASH("squash", "Combine with the previous commit, keeping both messages"),
+        DROP("drop", "Remove the commit entirely"),
+        REWORD("reword", "Keep the commit but edit the message"),
+        EDIT("edit", "Stop for manual editing of the commit"),
+        FIXUP("fixup", "Combine with the previous commit, discarding this commit's message");
+
+        private final String command;
+        private final String description;
+
+        RebaseAction(String command, String description) {
+            this.command = command;
+            this.description = description;
+        }
+
+        public String getCommand() {
+            return command;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        /**
+         * Parse a string command to RebaseAction enum.
+         */
+        public static RebaseAction fromCommand(String command) {
+            if (command == null) {
+                return null;
+            }
+            String lowerCommand = command.toLowerCase().trim();
+            for (RebaseAction action : values()) {
+                if (action.command.equals(lowerCommand)) {
+                    return action;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Convert to JGit's RebaseTodoLine.Action.
+         */
+        public org.eclipse.jgit.lib.RebaseTodoLine.Action toJGitAction() {
+            return switch (this) {
+                case PICK -> org.eclipse.jgit.lib.RebaseTodoLine.Action.PICK;
+                case SQUASH -> org.eclipse.jgit.lib.RebaseTodoLine.Action.SQUASH;
+                case DROP -> org.eclipse.jgit.lib.RebaseTodoLine.Action.COMMENT; // JGit doesn't have DROP, use COMMENT to skip
+                case REWORD -> org.eclipse.jgit.lib.RebaseTodoLine.Action.REWORD;
+                case EDIT -> org.eclipse.jgit.lib.RebaseTodoLine.Action.EDIT;
+                case FIXUP -> org.eclipse.jgit.lib.RebaseTodoLine.Action.FIXUP;
+            };
+        }
+    }
+
+    /**
      * Represents a rebase instruction.
      */
     public record RebaseInstruction(
-            String action,  // pick, squash, drop, reword, edit, fixup
+            RebaseAction action,
             int commitId,   // numeric ID of the commit
             String newMessage  // for reword action
     ) {
@@ -324,7 +382,7 @@ public class GitInteractiveRebaseService {
      * Gets a list of commits that would be included in an interactive rebase.
      * Uses short format by default.
      */
-    @Tool(name = "git_rebase_preview", description = "Previews the commits that would be included in an interactive rebase from the specified base commit. Use this to see what commits will be affected before starting the rebase. Uses short format by default.")
+    @Tool(name = "git_rebase_preview", description = "Previews the commits that would be included in an interactive rebase from the specified base commit. Use this to see what commits will be affected before starting the rebase. If baseCommit is null/empty, previews rebase to root (all commits). Uses short format by default.")
     public Result<List<RebaseCommit>> previewRebase(String baseCommit, int maxCount) {
         return previewRebase(baseCommit, maxCount, false, false);
     }
@@ -338,10 +396,6 @@ public class GitInteractiveRebaseService {
             return failure("Repository is not open");
         }
 
-        if (baseCommit == null || baseCommit.trim().isEmpty()) {
-            return failure("Base commit is required");
-        }
-
         if (maxCount < 0) {
             maxCount = 0;
         }
@@ -349,14 +403,18 @@ public class GitInteractiveRebaseService {
         try (Git git = new Git(repository.getRepository())) {
             Repository repo = git.getRepository();
 
-            ObjectId baseCommitId;
-            try {
-                baseCommitId = repo.resolve(baseCommit);
-                if (baseCommitId == null) {
-                    return failure("Could not resolve base commit: " + baseCommit);
+            ObjectId baseCommitId = null;
+
+            // If base commit is specified, resolve it. If null/empty, we'll rebase to root
+            if (baseCommit != null && !baseCommit.trim().isEmpty()) {
+                try {
+                    baseCommitId = repo.resolve(baseCommit);
+                    if (baseCommitId == null) {
+                        return failure("Could not resolve base commit: " + baseCommit);
+                    }
+                } catch (IOException e) {
+                    return failure("Invalid base commit: " + baseCommit);
                 }
-            } catch (IOException e) {
-                return failure("Invalid base commit: " + baseCommit);
             }
 
             List<RebaseCommit> commits = new ArrayList<>();
@@ -367,10 +425,13 @@ public class GitInteractiveRebaseService {
                 }
 
                 RevCommit headCommit = revWalk.parseCommit(headId);
-                RevCommit baseCommitObj = revWalk.parseCommit(baseCommitId);
-
                 revWalk.markStart(headCommit);
-                revWalk.markUninteresting(baseCommitObj);
+
+                // If base commit is specified, mark it as uninteresting
+                if (baseCommitId != null) {
+                    RevCommit baseCommitObj = revWalk.parseCommit(baseCommitId);
+                    revWalk.markUninteresting(baseCommitObj);
+                }
 
                 int count = 0;
                 for (RevCommit commit : revWalk) {
@@ -390,7 +451,7 @@ public class GitInteractiveRebaseService {
                                     commit.getAuthorIdent().getWhenAsInstant(),
                                     ZoneId.systemDefault()
                             ),
-                            "pick"
+                            RebaseAction.PICK
                     ));
                     count++;
                 }
@@ -490,14 +551,10 @@ public class GitInteractiveRebaseService {
     /**
      * Performs a simplified interactive rebase based on instructions.
      */
-    @Tool(name = "git_simple_rebase", description = "Performs an interactive rebase with simple instructions. Actions: 'pick' (keep), 'squash' (combine with previous), 'drop' (remove), 'reword' (change message), 'edit' (stop for editing), 'fixup' (like squash but discard message). Specify commit order and actions.")
+    @Tool(name = "git_simple_rebase", description = "Performs an interactive rebase with simple instructions. Use RebaseAction enum values: PICK (keep), SQUASH (combine with previous), DROP (remove), REWORD (change message), EDIT (stop for editing), FIXUP (like squash but discard message). Specify commit order and actions. If baseCommit is null/empty, rebases to root.")
     public Result<RebaseExecutionResult> performSimpleRebase(String baseCommit, List<RebaseInstruction> instructions) {
         if (!repository.hasRepo) {
             return failure("Repository is not open");
-        }
-
-        if (baseCommit == null || baseCommit.trim().isEmpty()) {
-            return failure("Base commit is required");
         }
 
         if (instructions == null || instructions.isEmpty()) {
@@ -527,20 +584,50 @@ public class GitInteractiveRebaseService {
                     return failure("Invalid commit ID: " + instruction.commitId());
                 }
 
-                String action = instruction.action().toLowerCase();
-                if (!List.of("pick", "squash", "drop", "reword", "edit", "fixup").contains(action)) {
-                    return failure("Invalid action: " + instruction.action() + ". Valid actions: pick, squash, drop, reword, edit, fixup");
+                if (instruction.action() == null) {
+                    return failure("Action is required for commit ID: " + instruction.commitId());
                 }
             }
 
             ObjectId baseCommitId;
-            try {
-                baseCommitId = repo.resolve(baseCommit);
-                if (baseCommitId == null) {
-                    return failure("Could not resolve base commit: " + baseCommit);
+            boolean isRootRebase = (baseCommit == null || baseCommit.trim().isEmpty());
+
+            if (!isRootRebase) {
+                try {
+                    baseCommitId = repo.resolve(baseCommit);
+                    if (baseCommitId == null) {
+                        return failure("Could not resolve base commit: " + baseCommit);
+                    }
+                } catch (IOException e) {
+                    return failure("Invalid base commit: " + baseCommit);
                 }
-            } catch (IOException e) {
-                return failure("Invalid base commit: " + baseCommit);
+            } else {
+                // For root rebase, find the root commit and use it as base
+                // This allows rebasing all commits including the root
+                try (RevWalk revWalk = new RevWalk(repo)) {
+                    ObjectId headId = repo.resolve("HEAD");
+                    if (headId == null) {
+                        return failure("Could not resolve HEAD");
+                    }
+
+                    RevCommit headCommit = revWalk.parseCommit(headId);
+                    revWalk.markStart(headCommit);
+
+                    RevCommit rootCommit = null;
+                    for (RevCommit commit : revWalk) {
+                        rootCommit = commit; // The last commit in the walk is the root
+                    }
+
+                    if (rootCommit == null) {
+                        return failure("Could not find root commit");
+                    }
+
+                    // Use the root commit itself as the base for rebasing
+                    // This will include all commits in the rebase
+                    baseCommitId = rootCommit.getId();
+                } catch (IOException e) {
+                    return failure("Error finding root commit: " + e.getMessage());
+                }
             }
 
             // Create a custom interactive handler that applies our instructions
@@ -568,16 +655,7 @@ public class GitInteractiveRebaseService {
                                 }
 
                                 if (matchingInstruction != null) {
-                                    org.eclipse.jgit.lib.RebaseTodoLine.Action action = switch (matchingInstruction.action().toLowerCase()) {
-                                        case "pick" -> org.eclipse.jgit.lib.RebaseTodoLine.Action.PICK;
-                                        case "squash" -> org.eclipse.jgit.lib.RebaseTodoLine.Action.SQUASH;
-                                        case "drop" ->
-                                                org.eclipse.jgit.lib.RebaseTodoLine.Action.COMMENT; // JGit doesn't have DROP, use COMMENT to skip
-                                        case "reword" -> org.eclipse.jgit.lib.RebaseTodoLine.Action.REWORD;
-                                        case "edit" -> org.eclipse.jgit.lib.RebaseTodoLine.Action.EDIT;
-                                        case "fixup" -> org.eclipse.jgit.lib.RebaseTodoLine.Action.FIXUP;
-                                        default -> org.eclipse.jgit.lib.RebaseTodoLine.Action.PICK;
-                                    };
+                                    org.eclipse.jgit.lib.RebaseTodoLine.Action action = matchingInstruction.action().toJGitAction();
 
                                     try {
                                         step.setAction(action);
@@ -592,7 +670,7 @@ public class GitInteractiveRebaseService {
                         public String modifyCommitMessage(String commit) {
                             // Find if there's a reword instruction for this commit
                             for (RebaseInstruction instruction : instructions) {
-                                if ("reword".equalsIgnoreCase(instruction.action()) &&
+                                if (instruction.action() == RebaseAction.REWORD &&
                                     instruction.newMessage() != null && !instruction.newMessage().trim().isEmpty()) {
                                     return instruction.newMessage();
                                 }

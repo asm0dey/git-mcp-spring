@@ -104,13 +104,14 @@ class GitInteractiveRebaseServiceTest {
             assertThat(commits).hasSize(2); // Should have 2 commits after the base commit
 
             // Check commit details
-            assertThat(commits.get(0).message()).isEqualTo("Add file3.txt");
-            assertThat(commits.get(0).action()).isEqualTo("pick");
-            assertThat(commits.get(0).commitId()).hasSize(7); // Should be short format by default
-            assertThat(commits.get(0).author()).isNotEmpty();
+            GitInteractiveRebaseService.RebaseCommit firstCommit = commits.getFirst();
+            assertThat(firstCommit.message()).isEqualTo("Add file3.txt");
+            assertThat(firstCommit.action()).isEqualTo(GitInteractiveRebaseService.RebaseAction.PICK);
+            assertThat(firstCommit.commitId()).hasSize(7); // Should be short format by default
+            assertThat(firstCommit.author()).isNotEmpty();
 
             assertThat(commits.get(1).message()).isEqualTo("Add file2.txt");
-            assertThat(commits.get(1).action()).isEqualTo("pick");
+            assertThat(commits.get(1).action()).isEqualTo(GitInteractiveRebaseService.RebaseAction.PICK);
         }
     }
 
@@ -309,9 +310,10 @@ class GitInteractiveRebaseServiceTest {
             assertThat(commits.get(2).id()).isEqualTo(3);
 
             // Check commit details
-            assertThat(commits.get(0).message()).isEqualTo("Add file3.txt");
-            assertThat(commits.get(0).commitId()).hasSize(7); // Should be short format by default
-            assertThat(commits.get(0).author()).isNotEmpty();
+            GitInteractiveRebaseService.NumberedCommit firstCommit = commits.getFirst();
+            assertThat(firstCommit.message()).isEqualTo("Add file3.txt");
+            assertThat(firstCommit.commitId()).hasSize(7); // Should be short format by default
+            assertThat(firstCommit.author()).isNotEmpty();
         }
     }
 
@@ -343,7 +345,7 @@ class GitInteractiveRebaseServiceTest {
         GitInteractiveRebaseService rebaseService = new GitInteractiveRebaseService(gitRepository);
 
         var instructions = List.of(
-                new GitInteractiveRebaseService.RebaseInstruction("pick", 1, null)
+                new GitInteractiveRebaseService.RebaseInstruction(GitInteractiveRebaseService.RebaseAction.PICK, 1, null)
         );
         Result<GitInteractiveRebaseService.RebaseExecutionResult> result = 
                 rebaseService.performSimpleRebase("HEAD~2", instructions);
@@ -380,7 +382,7 @@ class GitInteractiveRebaseServiceTest {
             createAndCommitFile(git, "file2.txt", "content2");
 
             var instructions = List.of(
-                    new GitInteractiveRebaseService.RebaseInstruction("pick", 999, null) // Invalid commit ID
+                    new GitInteractiveRebaseService.RebaseInstruction(GitInteractiveRebaseService.RebaseAction.PICK, 999, null) // Invalid commit ID
             );
             Result<GitInteractiveRebaseService.RebaseExecutionResult> result = 
                     rebaseService.performSimpleRebase("HEAD~1", instructions);
@@ -392,7 +394,7 @@ class GitInteractiveRebaseServiceTest {
     }
 
     @Test
-    void testPerformSimpleRebaseWithInvalidAction(@TempDir Path tempDir) throws Exception {
+    void testPerformSimpleRebaseWithNullAction(@TempDir Path tempDir) throws Exception {
         try (var git = Git.init().setDirectory(tempDir.toFile()).call()) {
             GitRepositoryService gitRepository = new GitRepositoryService();
             gitRepository.open(tempDir.toAbsolutePath().toString());
@@ -402,22 +404,22 @@ class GitInteractiveRebaseServiceTest {
             createAndCommitFile(git, "file2.txt", "content2");
 
             var instructions = List.of(
-                    new GitInteractiveRebaseService.RebaseInstruction("invalid-action", 1, null)
+                    new GitInteractiveRebaseService.RebaseInstruction(null, 1, null)
             );
             Result<GitInteractiveRebaseService.RebaseExecutionResult> result = 
                     rebaseService.performSimpleRebase("HEAD~1", instructions);
 
             assertThat(result).isInstanceOf(Result.Failure.class);
             assertThat(((Result.Failure<GitInteractiveRebaseService.RebaseExecutionResult>) result).message())
-                    .contains("Invalid action: invalid-action");
+                    .contains("Action is required for commit ID: 1");
         }
     }
 
     @Test
     void testRebaseInstructionRecord() {
-        var instruction = new GitInteractiveRebaseService.RebaseInstruction("pick", 1, "new message");
+        var instruction = new GitInteractiveRebaseService.RebaseInstruction(GitInteractiveRebaseService.RebaseAction.PICK, 1, "new message");
 
-        assertEquals("pick", instruction.action());
+        assertEquals(GitInteractiveRebaseService.RebaseAction.PICK, instruction.action());
         assertEquals(1, instruction.commitId());
         assertEquals("new message", instruction.newMessage());
     }
@@ -470,12 +472,12 @@ class GitInteractiveRebaseServiceTest {
             var fullCommits = ((Result.Success<List<GitInteractiveRebaseService.NumberedCommit>>) fullResult).value();
 
             // Verify short format has shorter commit IDs and messages
-            assertThat(shortCommits.get(0).commitId()).hasSize(7);
-            assertThat(shortCommits.get(0).message()).isEqualTo("Add file2.txt");
+            assertThat(shortCommits.getFirst().commitId()).hasSize(7);
+            assertThat(shortCommits.getFirst().message()).isEqualTo("Add file2.txt");
 
             // Verify full format has longer commit IDs and same messages (since they're the same in this case)
-            assertThat(fullCommits.get(0).commitId()).hasSize(40);
-            assertThat(fullCommits.get(0).message()).isEqualTo("Add file2.txt");
+            assertThat(fullCommits.getFirst().commitId()).hasSize(40);
+            assertThat(fullCommits.getFirst().message()).isEqualTo("Add file2.txt");
         }
     }
 
@@ -504,12 +506,12 @@ class GitInteractiveRebaseServiceTest {
             var fullCommits = ((Result.Success<List<GitInteractiveRebaseService.RebaseCommit>>) fullResult).value();
 
             // Verify short format has shorter commit IDs
-            assertThat(shortCommits.get(0).commitId()).hasSize(7);
-            assertThat(shortCommits.get(0).message()).isEqualTo("Add file2.txt");
+            assertThat(shortCommits.getFirst().commitId()).hasSize(7);
+            assertThat(shortCommits.getFirst().message()).isEqualTo("Add file2.txt");
 
             // Verify full format has longer commit IDs
-            assertThat(fullCommits.get(0).commitId()).hasSize(40);
-            assertThat(fullCommits.get(0).message()).isEqualTo("Add file2.txt");
+            assertThat(fullCommits.getFirst().commitId()).hasSize(40);
+            assertThat(fullCommits.getFirst().message()).isEqualTo("Add file2.txt");
         }
     }
 
@@ -526,5 +528,148 @@ class GitInteractiveRebaseServiceTest {
         var customSettings = GitInteractiveRebaseService.CommitDisplaySettings.custom(true, false);
         assertTrue(customSettings.useFullCommitId());
         assertFalse(customSettings.useFullMessage());
+    }
+
+    @Test
+    void testRebaseActionEnum() {
+        // Test enum values
+        assertEquals("pick", GitInteractiveRebaseService.RebaseAction.PICK.getCommand());
+        assertEquals("squash", GitInteractiveRebaseService.RebaseAction.SQUASH.getCommand());
+        assertEquals("drop", GitInteractiveRebaseService.RebaseAction.DROP.getCommand());
+        assertEquals("reword", GitInteractiveRebaseService.RebaseAction.REWORD.getCommand());
+        assertEquals("edit", GitInteractiveRebaseService.RebaseAction.EDIT.getCommand());
+        assertEquals("fixup", GitInteractiveRebaseService.RebaseAction.FIXUP.getCommand());
+
+        // Test descriptions
+        assertThat(GitInteractiveRebaseService.RebaseAction.PICK.getDescription()).isNotEmpty();
+        assertThat(GitInteractiveRebaseService.RebaseAction.SQUASH.getDescription()).isNotEmpty();
+
+        // Test fromCommand method
+        assertEquals(GitInteractiveRebaseService.RebaseAction.PICK, 
+                GitInteractiveRebaseService.RebaseAction.fromCommand("pick"));
+        assertEquals(GitInteractiveRebaseService.RebaseAction.SQUASH, 
+                GitInteractiveRebaseService.RebaseAction.fromCommand("SQUASH"));
+        assertEquals(GitInteractiveRebaseService.RebaseAction.DROP, 
+                GitInteractiveRebaseService.RebaseAction.fromCommand(" drop "));
+        assertThat(GitInteractiveRebaseService.RebaseAction.fromCommand("invalid")).isNull();
+        assertThat(GitInteractiveRebaseService.RebaseAction.fromCommand(null)).isNull();
+
+        // Test toJGitAction method
+        assertEquals(org.eclipse.jgit.lib.RebaseTodoLine.Action.PICK, 
+                GitInteractiveRebaseService.RebaseAction.PICK.toJGitAction());
+        assertEquals(org.eclipse.jgit.lib.RebaseTodoLine.Action.SQUASH, 
+                GitInteractiveRebaseService.RebaseAction.SQUASH.toJGitAction());
+        assertEquals(org.eclipse.jgit.lib.RebaseTodoLine.Action.COMMENT, 
+                GitInteractiveRebaseService.RebaseAction.DROP.toJGitAction()); // DROP maps to COMMENT
+        assertEquals(org.eclipse.jgit.lib.RebaseTodoLine.Action.REWORD, 
+                GitInteractiveRebaseService.RebaseAction.REWORD.toJGitAction());
+        assertEquals(org.eclipse.jgit.lib.RebaseTodoLine.Action.EDIT, 
+                GitInteractiveRebaseService.RebaseAction.EDIT.toJGitAction());
+        assertEquals(org.eclipse.jgit.lib.RebaseTodoLine.Action.FIXUP, 
+                GitInteractiveRebaseService.RebaseAction.FIXUP.toJGitAction());
+    }
+
+    @Test
+    void testPreviewRebaseToRoot(@TempDir Path tempDir) throws Exception {
+        try (var git = Git.init().setDirectory(tempDir.toFile()).call()) {
+            GitRepositoryService gitRepository = new GitRepositoryService();
+            gitRepository.open(tempDir.toAbsolutePath().toString());
+            GitInteractiveRebaseService rebaseService = new GitInteractiveRebaseService(gitRepository);
+
+            // Create multiple commits
+            createAndCommitFile(git, "file1.txt", "content1");
+            createAndCommitFile(git, "file2.txt", "content2");
+            createAndCommitFile(git, "file3.txt", "content3");
+
+            // Preview rebase to root (null baseCommit)
+            Result<List<GitInteractiveRebaseService.RebaseCommit>> result = rebaseService.previewRebase(null, 0);
+
+            assertThat(result).isInstanceOf(Result.Success.class);
+            var commits = ((Result.Success<List<GitInteractiveRebaseService.RebaseCommit>>) result).value();
+            assertThat(commits).hasSize(3); // Should include all commits
+
+            // Verify commits are in reverse chronological order (newest first)
+            assertThat(commits.get(0).message()).isEqualTo("Add file3.txt");
+            assertThat(commits.get(1).message()).isEqualTo("Add file2.txt");
+            assertThat(commits.get(2).message()).isEqualTo("Add file1.txt");
+        }
+    }
+
+    @Test
+    void testPreviewRebaseToRootWithEmptyString(@TempDir Path tempDir) throws Exception {
+        try (var git = Git.init().setDirectory(tempDir.toFile()).call()) {
+            GitRepositoryService gitRepository = new GitRepositoryService();
+            gitRepository.open(tempDir.toAbsolutePath().toString());
+            GitInteractiveRebaseService rebaseService = new GitInteractiveRebaseService(gitRepository);
+
+            // Create multiple commits
+            createAndCommitFile(git, "file1.txt", "content1");
+            createAndCommitFile(git, "file2.txt", "content2");
+
+            // Preview rebase to root (empty string baseCommit)
+            Result<List<GitInteractiveRebaseService.RebaseCommit>> result = rebaseService.previewRebase("", 0);
+
+            assertThat(result).isInstanceOf(Result.Success.class);
+            var commits = ((Result.Success<List<GitInteractiveRebaseService.RebaseCommit>>) result).value();
+            assertThat(commits).hasSize(2); // Should include all commits
+        }
+    }
+
+    @Test
+    void testListCommitsToRoot(@TempDir Path tempDir) throws Exception {
+        try (var git = Git.init().setDirectory(tempDir.toFile()).call()) {
+            GitRepositoryService gitRepository = new GitRepositoryService();
+            gitRepository.open(tempDir.toAbsolutePath().toString());
+            GitInteractiveRebaseService rebaseService = new GitInteractiveRebaseService(gitRepository);
+
+            // Create multiple commits
+            createAndCommitFile(git, "file1.txt", "content1");
+            createAndCommitFile(git, "file2.txt", "content2");
+            createAndCommitFile(git, "file3.txt", "content3");
+
+            // List commits to root (null baseCommit)
+            Result<List<GitInteractiveRebaseService.NumberedCommit>> result = rebaseService.listCommits(null, 0);
+
+            assertThat(result).isInstanceOf(Result.Success.class);
+            var commits = ((Result.Success<List<GitInteractiveRebaseService.NumberedCommit>>) result).value();
+            assertThat(commits).hasSize(3); // Should include all commits
+
+            // Verify commits have sequential IDs and are in reverse chronological order
+            assertThat(commits.get(0).id()).isEqualTo(1);
+            assertThat(commits.get(0).message()).isEqualTo("Add file3.txt");
+            assertThat(commits.get(1).id()).isEqualTo(2);
+            assertThat(commits.get(1).message()).isEqualTo("Add file2.txt");
+            assertThat(commits.get(2).id()).isEqualTo(3);
+            assertThat(commits.get(2).message()).isEqualTo("Add file1.txt");
+        }
+    }
+
+    @Test
+    void testPerformSimpleRebaseToRootValidation(@TempDir Path tempDir) throws Exception {
+        try (var git = Git.init().setDirectory(tempDir.toFile()).call()) {
+            GitRepositoryService gitRepository = new GitRepositoryService();
+            gitRepository.open(tempDir.toAbsolutePath().toString());
+            GitInteractiveRebaseService rebaseService = new GitInteractiveRebaseService(gitRepository);
+
+            // Create multiple commits
+            createAndCommitFile(git, "file1.txt", "content1");
+            createAndCommitFile(git, "file2.txt", "content2");
+
+            // Test that performSimpleRebase accepts null baseCommit and validates instructions
+            var instructions = List.of(
+                    new GitInteractiveRebaseService.RebaseInstruction(GitInteractiveRebaseService.RebaseAction.PICK, 1, null),
+                    new GitInteractiveRebaseService.RebaseInstruction(GitInteractiveRebaseService.RebaseAction.PICK, 2, null)
+            );
+
+            // This should not fail due to null baseCommit, but might fail due to JGit limitations
+            Result<GitInteractiveRebaseService.RebaseExecutionResult> result = 
+                    rebaseService.performSimpleRebase(null, instructions);
+
+            // The result might be success or failure depending on JGit's capabilities
+            // but it should not fail with "Base commit is required"
+            if (result instanceof Result.Failure<GitInteractiveRebaseService.RebaseExecutionResult>(String message)) {
+                assertThat(message).doesNotContain("Base commit is required");
+            }
+        }
     }
 }
