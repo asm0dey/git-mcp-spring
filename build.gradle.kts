@@ -23,7 +23,7 @@ extra["springAiVersion"] = "1.0.0"
 
 dependencies {
     // JGit for Git operations
-    implementation("org.eclipse.jgit:org.eclipse.jgit:7.2.1.202505142326-r")
+    implementation("org.eclipse.jgit:org.eclipse.jgit:7.3.0.202506031305-r")
     implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
