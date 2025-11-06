@@ -21,17 +21,26 @@ class GitReflogServiceTest {
         git.commit().setMessage("Add " + filename).call();
     }
 
-    @Test
-    void checkFirstReflogEntry() {
-        GitRepositoryService gitRepository = new GitRepositoryService();
-        gitRepository.open(System.getProperty("user.dir"));
-        GitReflogService reflogService = new GitReflogService(gitRepository);
-        Result<List<GitReflogService.ReflogEntry>> outRef = reflogService.getReflog(null, 0);
-        var reflog = ((Result.Success<List<GitReflogService.ReflogEntry>>) outRef).value();
 
-        assertEquals("commit (initial): Init", reflog.getLast().message());
-        assertEquals("0000000000000000000000000000000000000000", reflog.getLast().oldId());
-        assertEquals(reflog.size(), reflog.getLast().index() + 1);
+    @Test
+    void checkFirstReflogEntry(@TempDir Path tempDir) throws Exception {
+        // Initialize new repository
+        try (var git = Git.init().setDirectory(tempDir.toFile()).call()) {
+            GitRepositoryService gitRepository = new GitRepositoryService();
+            gitRepository.open(tempDir.toAbsolutePath().toString());
+            GitReflogService reflogService = new GitReflogService(gitRepository);
+
+            // Create initial commit
+            createAndCommitFile(git, "initial.txt", "initial content");
+
+            Result<List<GitReflogService.ReflogEntry>> outRef = reflogService.getReflog(null, 0);
+            var reflog = ((Result.Success<List<GitReflogService.ReflogEntry>>) outRef).value();
+
+            assertThat(reflog).hasSize(1);
+            assertThat(reflog.getLast().message()).contains("Add initial.txt");
+            assertEquals("0000000000000000000000000000000000000000", reflog.getLast().oldId());
+            assertEquals(reflog.size(), reflog.getLast().index() + 1);
+        }
     }
 
 

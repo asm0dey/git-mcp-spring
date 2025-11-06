@@ -1,9 +1,9 @@
 plugins {
     java
     application
-    id("org.springframework.boot") version "3.5.3"
-    id("io.spring.dependency-management") version "1.1.7"
-    id("org.graalvm.buildtools.native") version "0.10.6"
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
+    id("org.graalvm.buildtools.native")
 }
 
 group = "com.github.asm0dey"
@@ -11,7 +11,7 @@ version = "0.0.1-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(24)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -19,16 +19,16 @@ repositories {
     mavenCentral()
 }
 
-extra["springAiVersion"] = "1.0.0"
+extra["springAiVersion"] = "1.1.0-M4"
 
 dependencies {
     // JGit for Git operations
-    implementation("org.eclipse.jgit:org.eclipse.jgit:7.3.0.202506031305-r")
-    implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")
+    implementation(libs.org.eclipse.jgit)
+    implementation(libs.spring.ai.starter.mcp.server.webmvc)
 
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.assertj:assertj-core:4.0.0-M1")
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.assertj.core)
 }
 
 dependencyManagement {
