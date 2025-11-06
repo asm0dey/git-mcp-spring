@@ -6,7 +6,7 @@ org-springframework-boot = { id = "org.springframework.boot", version = "3.5.7" 
 
 io-spring-dependency-management = { id = "io.spring.dependency-management", version = "1.1.7" }
 
-org-graalvm-buildtools-native = { id = "org.graalvm.buildtools.native", version = "0.10.6" }
+org-graalvm-buildtools-native = { id = "org.graalvm.buildtools.native", version = "0.11.2" }
 
 [versions]
 
