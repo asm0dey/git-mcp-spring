@@ -19,7 +19,7 @@ repositories {
     mavenCentral()
 }
 
-extra["springAiVersion"] = "1.1.0-M4"
+extra["springAiVersion"] = "1.1.0"
 
 dependencies {
     // JGit for Git operations
