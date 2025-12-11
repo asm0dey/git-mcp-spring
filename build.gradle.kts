@@ -1,9 +1,9 @@
 plugins {
     java
     application
-    id("org.springframework.boot")
-    id("io.spring.dependency-management")
-    id("org.graalvm.buildtools.native")
+    alias(libs.plugins.org.springframework.boot)
+    alias(libs.plugins.io.spring.dependency.management)
+    alias(libs.plugins.org.graalvm.buildtools.native)
 }
 
 group = "com.github.asm0dey"
@@ -19,7 +19,16 @@ repositories {
     mavenCentral()
 }
 
-extra["springAiVersion"] = "1.1.0-M4"
+extra["springAiVersion"] = "2.0.0-SNAPSHOT"
+repositories {
+    mavenCentral()
+    maven { url = uri("https://repo.spring.io/milestone") }
+    maven { url = uri("https://repo.spring.io/snapshot") }
+    maven {
+        name = "Central Portal Snapshots"
+        url = uri("https://central.sonatype.com/repository/maven-snapshots/")
+    }
+}
 
 dependencies {
     // JGit for Git operations
@@ -44,3 +53,5 @@ tasks.withType<Test> {
 application {
     mainClass.set("com.github.asm0dey.git_mcp_spring.GitMcpSpringApplication")
 }
+
+
