@@ -19,7 +19,7 @@ repositories {
     mavenCentral()
 }
 
-extra["springAiVersion"] = "2.0.0-SNAPSHOT"
+extra["springAiVersion"] = "2.0.1"
 repositories {
     mavenCentral()
     maven { url = uri("https://repo.spring.io/milestone") }
