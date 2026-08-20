@@ -11,7 +11,7 @@ org-graalvm-buildtools-native = { id = "org.graalvm.buildtools.native", version 
 [versions]
 
 assertj-core = "4.0.0-M1"
-spring = "4.0.1-SNAPSHOT"
+spring = "4.1.1"
 
 [libraries]
 
