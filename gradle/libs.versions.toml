@@ -15,7 +15,7 @@ spring = "4.0.1-SNAPSHOT"
 
 [libraries]
 
-org-eclipse-jgit = "org.eclipse.jgit:org.eclipse.jgit:7.4.0.202509020913-r"
+org-eclipse-jgit = "org.eclipse.jgit:org.eclipse.jgit:7.8.0.202609011348-r"
 
 spring-ai-starter-mcp-server-webmvc = { module = "org.springframework.ai:spring-ai-starter-mcp-server-webmvc" }
 
